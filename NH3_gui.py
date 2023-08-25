@@ -2,6 +2,18 @@ from guizero import App, Text, TextBox, Combo, PushButton, Box
 
 selected_sensor1 = None
 selected_sensor2 = None
+
+# list for keeping track of sensor under test
+# 0=Sensor Number (same as index), 1=Tested, 2=selected to be tested, 3=color of button
+lst_sensor_uut = [[0, 0, 0, "gray"],
+                  [1, 0, 0, "gray"],
+                  [2, 0, 0, "gray"],
+                  [3, 0, 0, "gray"],
+                  [4, 0, 0, "gray"],
+                  [5, 0, 0, "gray"],
+                  [6, 0, 0, "gray"],
+                  [7, 0, 0, "gray"],
+                  ]
 lst_selected_sensor = [0, 0, 0, 0, 0, 0, 0, 0]
 lst_sensor_color = ["gray",
                     "gray",
@@ -31,13 +43,12 @@ def do_nothing(button_number):
     i = 0
     for sensor in lst_selected_sensor:
         if sensor == 1:
-            print(f"Testing sensor {i}")
+            txt_status.append(f"Testing sensor {i}")
             lst_sensor_color[i] = "blue"
 
         i = i + 1
     print(f"button {button_number} pressed")
     update_sensor_colors()
-
 
 def select_sensor(button_number):
     """ This Function will allow up to two sensor buttons to be selected at a time"""
@@ -53,9 +64,10 @@ def select_sensor(button_number):
     elif sum(lst_selected_sensor) < (2 + lst_sensor_color.count("blue")):
         lst_selected_sensor[button_number] = 1
         lst_sensor_color[button_number] = "yellow"
+
     update_sensor_colors()
 
-app = App(layout="grid", width=600, height=300)
+app = App(layout="grid", width=700, height=600)
 lbl_item_num = Text(app, grid=[1, 0], text="Item Number:", align="right")
 cmb_item_num = Combo(app, grid=[2, 0], options=["110280", "110281", "113930"], align="left")
 lbl_serial_num = Text(app, grid=[1, 1], text="Serial Number:", align="right")
@@ -86,8 +98,11 @@ btn_sensor6.bg = "gray"
 btn_sensor7 = PushButton(btn_box, command=select_sensor, text="7", grid=[8, 0], args=[7])
 btn_sensor7.text_size = 25
 btn_sensor7.bg = "gray"
+txt_tip1 = Text(btn_box, grid=[0, 1, 8, 1], text="Gray: Not tested", align="left")
+txt_tip2 = Text(btn_box, grid=[0, 2, 8, 1], text="Yellow: Selected for testing, can only select 2 at a time", align="left")
+txt_tip1 = Text(btn_box, grid=[0, 3, 8, 1], text="Blue: Tested", align="left")
 lbl_status = Text(app, grid=[1, 5], text="Status:")
-txt_status = TextBox(app, grid=[1, 6, 5, 1], text="", width=65)
-btn_start = PushButton(app, grid=[2, 7], command=do_nothing, args=["Start"], text="Start")
-btn_complete = PushButton(app, grid=[4, 7], command=do_nothing, args=["Complete"], text="Complete")
+txt_status = TextBox(app, grid=[1, 6, 5, 2], text="", width=65, multiline=True, scrollbar=True)
+btn_start = PushButton(app, grid=[2, 8], command=do_nothing, args=["Start"], text="Start")
+btn_complete = PushButton(app, grid=[5, 8], command=do_nothing, args=["Complete"], text="Complete")
 app.display()
