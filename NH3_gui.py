@@ -2,80 +2,58 @@ from guizero import App, Text, TextBox, Combo, PushButton, Box
 
 selected_sensor1 = None
 selected_sensor2 = None
-lst_selected_sensor = [[0, 0, "gray"]
-                       [1, 0, "gray"]
-                       [2, 0, "gray"]
-                       [3, 0, "gray"]
-                       [4, 0, "gray"]
-                       [5, 0, "gray"]
-                       [6, 0, "gray"]
-                       [7, 0, "gray"]]
+lst_selected_sensor = [0, 0, 0, 0, 0, 0, 0, 0]
+lst_sensor_color = ["gray",
+                    "gray",
+                    "gray",
+                    "gray",
+                    "gray",
+                    "gray",
+                    "gray",
+                    "gray"]
+
+
+def update_sensor_colors():
+    # update the colors on the sensor buttons
+    global lst_sensor_color
+    btn_sensor0.bg = lst_sensor_color[0]
+    btn_sensor1.bg = lst_sensor_color[1]
+    btn_sensor2.bg = lst_sensor_color[2]
+    btn_sensor3.bg = lst_sensor_color[3]
+    btn_sensor4.bg = lst_sensor_color[4]
+    btn_sensor5.bg = lst_sensor_color[5]
+    btn_sensor6.bg = lst_sensor_color[6]
+    btn_sensor7.bg = lst_sensor_color[7]
 
 def do_nothing(button_number):
+    global lst_sensor_color
+    global lst_selected_sensor
+    i = 0
+    for sensor in lst_selected_sensor:
+        if sensor == 1:
+            print(f"Testing sensor {i}")
+            lst_sensor_color[i] = "blue"
+
+        i = i + 1
     print(f"button {button_number} pressed")
+    update_sensor_colors()
+
 
 def select_sensor(button_number):
     """ This Function will allow up to two sensor buttons to be selected at a time"""
+    global lst_selected_sensor
+    global lst_sensor_color
 
-    global selected_sensor1
-    global selected_sensor2
+    # Toggle the selected sensor with the selected sensor button, unless two are already selected
+    # Take into consideration the previous test
 
-    #  check to see if the selected sensor is already selected if so turn off
-    if button_number == selected_sensor1:
-        selected_sensor2 = None
-    if button_number == selected_sensor2:
-        selected_sensor2 = None
-
-    # Move the selected_sensor2 to selected_sensor1 only if it is not None
-    # and the newly selected sensor is put in selected_sensor2
-    if selected_sensor2 is not None:
-        selected_sensor1 = selected_sensor2
-    else:  # is is None Newley selected sensor is move to selected_sensor1
-        selected_sensor1 = button_number
-
-    selected_sensor2 = button_number
-    print(f"selected_sensor1 = {selected_sensor1}, and selected_sensor2 = {selected_sensor2}")
-
-    # Update the button background to be selected
-    if selected_sensor1 == 0 or selected_sensor2 == 0:
-        btn_sensor0.bg = "yellow"
-    else:
-        btn_sensor0.bg = "gray"
-
-    if selected_sensor1 == 1 or selected_sensor2 == 1:
-        btn_sensor1.bg = "yellow"
-    else:
-        btn_sensor1.bg = "gray"
-
-    if selected_sensor1 == 2 or selected_sensor2 == 2:
-        btn_sensor2.bg = "yellow"
-    else:
-        btn_sensor2.bg = "gray"
-
-    if selected_sensor1 == 3 or selected_sensor2 == 3:
-        btn_sensor3.bg = "yellow"
-    else:
-        btn_sensor3.bg = "gray"
-
-    if selected_sensor1 == 4 or selected_sensor2 == 4:
-        btn_sensor4.bg = "yellow"
-    else:
-        btn_sensor4.bg = "gray"
-
-    if selected_sensor1 == 5 or selected_sensor2 == 5:
-        btn_sensor5.bg = "yellow"
-    else:
-        btn_sensor5.bg = "gray"
-
-    if selected_sensor1 == 6 or selected_sensor2 == 6:
-        btn_sensor6.bg = "yellow"
-    else:
-        btn_sensor6.bg = "gray"
-
-    if selected_sensor1 == 7 or selected_sensor2 == 7:
-        btn_sensor7.bg = "yellow"
-    else:
-        btn_sensor7.bg = "gray"
+    if lst_selected_sensor[button_number] == 1:
+        lst_selected_sensor[button_number] = 0
+        lst_sensor_color[button_number] = "gray"
+    elif sum(lst_selected_sensor) < (2 + lst_sensor_color.count("blue")):
+        lst_selected_sensor[button_number] = 1
+        lst_sensor_color[button_number] = "yellow"
+    update_sensor_colors()
 
 app = App(layout="grid", width=600, height=300)
 lbl_item_num = Text(app, grid=[1, 0], text="Item Number:", align="right")
