@@ -1,0 +1,4 @@
+TDW_SPI	KEYWORD1
+resetWye	KEYWORD2
+getNumberSensors	KEYWORD2
+getSensorData	KEYWORD2
