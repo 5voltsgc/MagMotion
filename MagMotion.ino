@@ -166,6 +166,9 @@ void handleSerial() {
         setState(STATE_READ);
       } else if (cmd == "SCAN") {
         setState(STATE_SCAN);
+      } else if (cmd == "NUMSENS") {
+        Serial.print("NUMSENS:");
+        Serial.println(numSensors);
       } else if (cmd == "CONFIG") {
         configValid = true;
       } else if (cmd.startsWith("DIRPOL=")) {
