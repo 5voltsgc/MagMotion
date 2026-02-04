@@ -55,7 +55,7 @@ const float STEPS_PER_MM = 6400.0f / 36.0f;
 
 // Start/Stop positions relative to "home reference" (defined after homing backoff)
 const float START_POS_MM = 5.0f;
-const float STOP_POS_MM  = 120.0f;
+const float STOP_POS_MM  = 150.0f;  // Was 120.0f
 
 // Print every N steps (1 = print every step)
 const uint16_t PRINT_EVERY_N_STEPS = 1;
@@ -82,6 +82,9 @@ bool configValid = false;
 bool homingStarted = false;
 bool scanStarted = false;
 bool scanComplete = false;
+bool pendingScanAfterHome = false;
+bool homeValid = false;
+bool slowScan = false;
 String faultCode = "";
 unsigned long lastStepMicros = 0;
 uint32_t homingStepsTaken = 0;
@@ -161,11 +164,22 @@ void handleSerial() {
         resetFault();
         setState(STATE_IDLE);
       } else if (cmd == "HOME") {
+        pendingScanAfterHome = false;
+        homeValid = false;
         setState(STATE_HOMING);
       } else if (cmd == "READ") {
         setState(STATE_READ);
       } else if (cmd == "SCAN") {
-        setState(STATE_SCAN);
+        if (homeValid) {
+          setState(STATE_SCAN);
+        } else {
+          pendingScanAfterHome = true;
+          setState(STATE_HOMING);
+        }
+      } else if (cmd == "SCANSPEED=SLOW") {
+        slowScan = true;
+      } else if (cmd == "SCANSPEED=FAST") {
+        slowScan = false;
       } else if (cmd == "NUMSENS") {
         Serial.print("NUMSENS:");
         Serial.println(numSensors);
@@ -203,7 +217,12 @@ void handleState() {
     case STATE_HOMING:
       if (!homingStarted) startHoming();
       if (isHomingComplete()) {
-        setState(STATE_IDLE);
+        if (pendingScanAfterHome) {
+          pendingScanAfterHome = false;
+          setState(STATE_SCAN);
+        } else {
+          setState(STATE_IDLE);
+        }
       }
       break;
     case STATE_READ:
@@ -211,7 +230,7 @@ void handleState() {
         setFault("NO_CONFIG");
         break;
       }
-      digitalWrite(PIN_ENABLE, LOW); // motor enabled, not moving
+      digitalWrite(PIN_ENABLE, HIGH); // motor disabled for manual move
       readAndPrintSensors();
       break;
     case STATE_SCAN:
@@ -343,6 +362,7 @@ bool isHomingComplete() {
     if (backoffStepsTaken >= BACKOFF_STEPS) {
       homingComplete = true;
       currentPosSteps = 0; // home reference after backoff
+      homeValid = true;
       return true;
     }
   }
@@ -385,7 +405,10 @@ bool isScanComplete() {
     }
   }
 
-  const uint32_t stepsPerSec = scanToStart ? RAPID_STEPS_PER_SEC : SCAN_STEPS_PER_SEC;
+  uint32_t stepsPerSec = scanToStart ? RAPID_STEPS_PER_SEC : SCAN_STEPS_PER_SEC;
+  if (!scanToStart && slowScan) {
+    stepsPerSec = max<uint32_t>(1, stepsPerSec / 10);
+  }
   const unsigned long stepIntervalUs = 1000000UL / stepsPerSec;
   unsigned long now = micros();
   if ((unsigned long)(now - lastStepMicros) < stepIntervalUs) return false;
@@ -437,3 +460,4 @@ bool limitFrontActive() {
 bool limitBackActive() {
   return digitalRead(PIN_LIM_B) == LOW;
 }
+

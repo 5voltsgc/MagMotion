@@ -97,6 +97,8 @@ class BarChart(tk.Canvas):
         self.max_bars = max_bars
         self.max_value = max_value
         self.values = [0] * max_bars
+        self.labels = [""] * max_bars
+        self.is_idod = [False] * max_bars
         self.bind("<Configure>", lambda _e: self.draw())
 
     def set_values(self, values):
@@ -106,14 +108,26 @@ class BarChart(tk.Canvas):
         self.values = vals
         self.draw()
 
+    def set_labels(self, labels, idod_flags):
+        labs = list(labels)[: self.max_bars]
+        if len(labs) < self.max_bars:
+            labs.extend([""] * (self.max_bars - len(labs)))
+        flags = list(idod_flags)[: self.max_bars]
+        if len(flags) < self.max_bars:
+            flags.extend([False] * (self.max_bars - len(flags)))
+        self.labels = labs
+        self.is_idod = flags
+        self.draw()
+
     def draw(self):
         self.delete("all")
         w = max(self.winfo_width(), 1)
         h = max(self.winfo_height(), 1)
         padding = 10
         left_axis_w = 40
+        bottom_axis_h = 22
         bar_area_w = w - 2 * padding
-        bar_area_h = h - 2 * padding
+        bar_area_h = h - 2 * padding - bottom_axis_h
         if bar_area_w <= 0 or bar_area_h <= 0:
             return
 
@@ -146,14 +160,27 @@ class BarChart(tk.Canvas):
             bar_h = (v / max_val) * bar_area_h
             y0 = padding + (bar_area_h - bar_h)
             y1 = padding + bar_area_h
-            self.create_rectangle(x0, y0, x1, y1, fill="#3B6EA8", outline="")
+            color = "#D88A2D" if self.is_idod[i] else "#3B6EA8"
+            self.create_rectangle(x0, y0, x1, y1, fill=color, outline="")
+            if self.labels[i]:
+                self.create_text(
+                    (x0 + x1) / 2,
+                    padding + bar_area_h + 12,
+                    text=self.labels[i],
+                    anchor="n",
+                    fill="#5A6B7A",
+                    font=("Segoe UI", 8),
+                )
 
 
 class MEAPDemoApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title(APP_TITLE)
-        self.minsize(1100, 700)
+        base_w, base_h = 1500, 700
+        default_w = int(base_w * 1.2)
+        self.minsize(default_w, base_h)
+        self.geometry(f"{default_w}x{base_h}")
 
         self.items = load_sensor_assemblies(CSV_FILE)
         self.item_numbers = sorted(self.items.keys())
@@ -162,12 +189,15 @@ class MEAPDemoApp(tk.Tk):
         self.heads_var = tk.StringVar(value="Heads: -")
         self.per_head_var = tk.StringVar(value="Sensors per head: -")
         self.total_sensors = 0
+        self.heads = 0
+        self.per_head = 0
         self.port_var = tk.StringVar()
         self.conn_status_var = tk.StringVar(value="Serial: disconnected")
         self.last_update_var = tk.StringVar(value="Last update: --")
         self.sensor_count_var = tk.StringVar(value="Detected sensors: --")
         self.reader = None
         self.include_sync_sequence = tk.BooleanVar(value=True)
+        self.slow_scan_var = tk.BooleanVar(value=False)
 
         self._build_ui()
         if self.item_numbers:
@@ -307,6 +337,11 @@ class MEAPDemoApp(tk.Tk):
         ttk.Button(test_row6, text="Query Sensors", command=self.query_sensors).pack(
             side=tk.LEFT
         )
+        ttk.Checkbutton(
+            left,
+            text="Slow scan (10x)",
+            variable=self.slow_scan_var,
+        ).pack(anchor="w", pady=(8, 0))
 
         # Chart area
         chart_frame = tk.LabelFrame(
@@ -334,16 +369,24 @@ class MEAPDemoApp(tk.Tk):
         if not item or item not in self.items:
             self.heads_var.set("Heads: -")
             self.per_head_var.set("Sensors per head: -")
+            self.heads = 0
+            self.per_head = 0
             self._load_table(0, 0)
             self.chart.set_values([])
             return
 
         heads, per_head = self.items[item]
+        self.heads = heads
+        self.per_head = per_head
         self.heads_var.set(f"Heads: {heads}")
         self.per_head_var.set(f"Sensors per head: {per_head}")
         self.total_sensors = heads * per_head
         self._load_table(heads, per_head)
         self.chart.set_values([0] * min(self.total_sensors, 32))
+        _, labels, idod_flags = self._reorder_by_type(
+            [0] * self.total_sensors, self.total_sensors
+        )
+        self.chart.set_labels(labels, idod_flags)
 
     def _load_table(self, heads, per_head):
         for row in self.table.get_children():
@@ -399,7 +442,15 @@ class MEAPDemoApp(tk.Tk):
 
     def _apply_sensor_data(self, values):
         total = self.total_sensors if self.total_sensors > 0 else len(values)
-        self.chart.set_values(values[: min(total, 32)])
+        if self.total_sensors > 0:
+            reordered, labels, idod_flags = self._reorder_by_type(
+                values, self.total_sensors
+            )
+            self.chart.set_values(reordered[: min(self.total_sensors, 32)])
+            self.chart.set_labels(labels, idod_flags)
+        else:
+            self.chart.set_values(values[: min(total, 32)])
+            self.chart.set_labels([], [])
 
         timestamp = time.strftime("%H:%M:%S")
         self.last_update_var.set(f"Last update: {timestamp} ({len(values)} ch)")
@@ -413,6 +464,39 @@ class MEAPDemoApp(tk.Tk):
                 if row_vals:
                     row_vals[1] = "OK"
                     self.table.item(row_id, values=row_vals)
+
+    def _reorder_by_type(self, values, total):
+        if self.total_sensors <= 0:
+            return values, [], []
+        heads = self.heads
+        per_head = self.per_head
+        if heads <= 0 or per_head <= 0:
+            return values, [], []
+
+        vals = list(values)[: total]
+        reordered = []
+        labels = []
+        idod_flags = []
+
+        # HALL first (first 3 per head), then IDOD (4th per head)
+        for h in range(1, heads + 1):
+            base = (h - 1) * per_head
+            for s in range(1, min(per_head, 3) + 1):
+                idx = base + (s - 1)
+                if idx < len(vals):
+                    reordered.append(vals[idx])
+                    labels.append(f"H{h}-H{s}")
+                    idod_flags.append(False)
+        for h in range(1, heads + 1):
+            base = (h - 1) * per_head
+            if per_head >= 4:
+                idx = base + 3
+                if idx < len(vals):
+                    reordered.append(vals[idx])
+                    labels.append(f"H{h}-I")
+                    idod_flags.append(True)
+
+        return reordered, labels, idod_flags
 
     def on_close(self):
         if self.reader:
@@ -436,8 +520,17 @@ class MEAPDemoApp(tk.Tk):
             self.conn_status_var.set("Serial: READ sent")
 
     def start_scan(self):
+        if self.slow_scan_var.get():
+            if not self.send_command("SCANSPEED=SLOW"):
+                return
+        else:
+            if not self.send_command("SCANSPEED=FAST"):
+                return
+        if not self.send_command("HOME"):
+            return
+        self.conn_status_var.set("Serial: HOME sent")
         if self.send_command("SCAN"):
-            self.conn_status_var.set("Serial: SCAN sent")
+            self.conn_status_var.set("Serial: HOME + SCAN sent")
 
     def stop_motion(self):
         if self.send_command("STOP"):
